@@ -1,0 +1,37 @@
+name: Generate Daily Research Word Clouds
+
+on:
+  schedule:
+    # Runs at 02:00 UTC every day. 
+    - cron: '0 2 * * *'
+  workflow_dispatch: # This allows you to trigger it manually from the GitHub UI for testing
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Allows the action to commit files back to your repo
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Word Cloud Script
+        run: python generate_clouds.py
+
+      - name: Commit and push updated files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add word_state.json accumulative_cloud.png new_words_cloud.png
+          # The '|| exit 0' prevents the workflow from failing if no new papers were found today
+          git commit -m "Automated update: Daily Word Clouds" || exit 0
+          git push
