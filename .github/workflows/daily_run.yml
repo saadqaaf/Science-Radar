@@ -2,8 +2,8 @@ name: Generate Daily Research Dashboard
 
 on:
   schedule:
-    # Runs at 02:00 UTC every day.
-    - cron: '0 2 * * *'
+    # Runs at minute 0 past these 10 specific hours (UTC)
+    - cron: '0 0,2,5,7,10,12,14,17 * * *'
   workflow_dispatch: # Allows you to trigger it manually from the GitHub UI for testing
 
 jobs:
