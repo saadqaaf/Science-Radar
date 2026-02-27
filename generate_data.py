@@ -8,70 +8,87 @@ from nltk.corpus import stopwords
 from collections import Counter
 
 # --- CONFIGURATION ---
-ISSNS = ["1476-4687", "1095-9203"] # Nature, Science
+ISSNS = ["2058-7546", "2542-4351"] # Nature Energy, Joule
 EMAIL = "s_g555@yahoo.com"
 STATE_FILE = "word_state.json"
 DASHBOARD_DATA = "dashboard_data.json"
+SEEN_DOIS_FILE = "seen_dois.json" # Our new memory bank for papers
 
-# Setup stopwords (removes conjunctions, prepositions, etc.)
+# Setup stopwords
 nltk.download('stopwords', quiet=True)
 stop_words = set(stopwords.words('english'))
-# Add common academic filler words you want to ignore
 stop_words.update(['using', 'based', 'study', 'effect', 'effects', 'analysis', 'new', 'two', 'via', 'high'])
 
 def clean_and_tokenize(text):
-    """Removes punctuation, numbers, and grammar/stop words."""
-    text = re.sub(r'[^\w\s]', '', text).lower()
-    text = re.sub(r'\d+', '', text)
-    return [w for w in text.split() if w not in stop_words and len(w) > 2]
+    """Removes punctuation (except hyphens), stop words, and standalone numbers but keeps chemical formulas."""
+    text = re.sub(r'[^\w\s\-]', '', text).lower()
+    words = text.split()
+    cleaned_words = []
+    
+    for w in words:
+        w = w.strip('-')
+        if w not in stop_words and len(w) > 1 and not w.isnumeric():
+            cleaned_words.append(w)
+            
+    return cleaned_words
 
-def fetch_yesterdays_papers():
-    """Fetches titles and DOIs."""
-    yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+def fetch_new_papers(seen_dois):
+    """Fetches the 100 most recent papers and filters out ones we've already seen."""
     papers = []
     headers = {"User-Agent": f"DailyTrendTracker/1.0 (mailto:{EMAIL})"}
     
     for issn in ISSNS:
-        url = f"https://api.crossref.org/journals/{issn}/works?filter=from-created-date:{yesterday},until-created-date:{yesterday}&select=title,DOI"
+        # Sort by creation date descending, grab top 100
+        url = f"https://api.crossref.org/journals/{issn}/works?sort=created&order=desc&rows=100&select=title,DOI"
         try:
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
                 items = response.json().get('message', {}).get('items', [])
                 for item in items:
+                    doi = item.get('DOI')
                     title_list = item.get('title', [])
-                    if title_list:
+                    
+                    # If it has a title, a DOI, and we haven't processed it before
+                    if title_list and doi and doi not in seen_dois:
                         papers.append({
                             "title": title_list[0],
-                            "doi": item.get('DOI', 'No DOI available')
+                            "doi": doi
                         })
+                        seen_dois.add(doi) # Add to our memory bank
         except Exception as e:
             print(f"Error fetching ISSN {issn}: {e}")
             
     return papers
 
 def main():
-    # 1. Load historical state
+    # 1. Load historical word state
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, 'r') as f:
             cumulative_counts = json.load(f)
     else:
         cumulative_counts = {}
 
-    # 2. Fetch new papers
-    papers = fetch_yesterdays_papers()
+    # 2. Load seen DOIs memory bank
+    if os.path.exists(SEEN_DOIS_FILE):
+        with open(SEEN_DOIS_FILE, 'r') as f:
+            seen_dois = set(json.load(f))
+    else:
+        seen_dois = set()
+
+    # 3. Fetch only truly new papers
+    papers = fetch_new_papers(seen_dois)
     if not papers:
-        print("No new papers found. Exiting.")
+        print("No new papers published since last run. Exiting.")
         return
 
     today_counts = Counter()
-    new_words_data = {} # Maps new word to {count: X, dois: [DOI1, DOI2]}
+    new_words_data = {} 
 
-    # 3. Process papers
+    # 4. Process papers
     for paper in papers:
         words = clean_and_tokenize(paper["title"])
         for word in words:
             today_counts[word] += 1
-            # Check if it's a completely new word
             if word not in cumulative_counts:
                 if word not in new_words_data:
                     new_words_data[word] = {"count": 0, "dois": []}
@@ -79,18 +96,19 @@ def main():
                 if paper["doi"] not in new_words_data[word]["dois"]:
                     new_words_data[word]["dois"].append(paper["doi"])
 
-    # 4. Update the accumulative state
+    # 5. Update the accumulative state
     for word, count in today_counts.items():
         cumulative_counts[word] = cumulative_counts.get(word, 0) + count
 
-    # 5. Save internal state
+    # 6. Save internal states
     with open(STATE_FILE, 'w') as f:
         json.dump(cumulative_counts, f)
+        
+    with open(SEEN_DOIS_FILE, 'w') as f:
+        json.dump(list(seen_dois), f) # Save updated DOI memory bank
 
-    # 6. Save frontend dashboard data
-    # Sort cumulative for the frontend (top 300 words to avoid overloading browser)
+    # 7. Save frontend dashboard data
     sorted_cumulative = dict(sorted(cumulative_counts.items(), key=lambda item: item[1], reverse=True)[:300])
-    
     dashboard_payload = {
         "last_updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC"),
         "cumulative": sorted_cumulative,
@@ -99,7 +117,7 @@ def main():
     
     with open(DASHBOARD_DATA, 'w') as f:
         json.dump(dashboard_payload, f)
-    print("Data processed and dashboard_data.json updated.")
+    print(f"Processed {len(papers)} new papers. Dashboard updated.")
 
 if __name__ == "__main__":
     main()
