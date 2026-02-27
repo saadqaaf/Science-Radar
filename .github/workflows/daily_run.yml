@@ -1,16 +1,15 @@
-name: Generate Daily Research Word Clouds
+name: Generate Daily Research Dashboard
 
 on:
   schedule:
-    # Runs at 02:00 UTC every day. 
     - cron: '0 2 * * *'
-  workflow_dispatch: # This allows you to trigger it manually from the GitHub UI for testing
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Allows the action to commit files back to your repo
+      contents: write 
 
     steps:
       - name: Checkout repository
@@ -24,14 +23,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Word Cloud Script
-        run: python generate_clouds.py
+      - name: Run Data Engine
+        run: python generate_data.py
 
-      - name: Commit and push updated files
+      - name: Commit and push updated JSON
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add word_state.json accumulative_cloud.png new_words_cloud.png
-          # The '|| exit 0' prevents the workflow from failing if no new papers were found today
-          git commit -m "Automated update: Daily Word Clouds" || exit 0
+          git add word_state.json dashboard_data.json
+          git commit -m "Automated update: Dashboard Data" || exit 0
           git push
