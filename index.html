@@ -3,165 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Research Trends Dashboard</title>
+    <title>Energy Research Trend Analyzer</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
     <style>
         :root {
-            --bg-color: #f3f4f6;
+            --bg-color: #f0fdf4; 
             --card-bg: #ffffff;
-            --text-main: #111827;
-            --text-muted: #6b7280;
-            --primary: #4f46e5;
-            --primary-hover: #4338ca;
+            --text-main: #1f2937;
+            --text-muted: #4b5563;
+            --primary: #16a34a; 
             --border: #e5e7eb;
         }
 
-        body { 
-            font-family: 'Inter', sans-serif; 
-            margin: 0; 
-            padding: 2rem 1rem; 
-            background: var(--bg-color); 
-            color: var(--text-main);
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 2rem 1rem; background: var(--bg-color); color: var(--text-main); }
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        /* Header & Info Section */
+        header { text-align: center; margin-bottom: 2rem; }
+        h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 12px; color: #111827;}
+        .update-time { color: var(--text-muted); font-size: 0.875rem; font-weight: 500;}
+        
+        .info-card {
+            background: #dcfce7; border-left: 4px solid var(--primary); padding: 1rem 1.5rem;
+            border-radius: 8px; margin-bottom: 2rem; color: #166534; font-size: 0.95rem; line-height: 1.5;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        /* Header Styles */
-        header { text-align: center; margin-bottom: 2.5rem; }
-        h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.025em; }
-        .update-time { color: var(--text-muted); font-size: 0.875rem; }
-
-        /* Modern Tabs */
-        .tabs { 
-            display: flex; 
-            justify-content: center; 
-            gap: 1rem; 
-            margin-bottom: 2rem; 
-        }
+        /* Tabs */
+        .tabs { display: flex; justify-content: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;}
         .tab-btn { 
-            background: var(--card-bg); 
-            border: 1px solid var(--border); 
-            padding: 0.75rem 1.5rem; 
-            cursor: pointer; 
-            font-size: 1rem; 
-            font-weight: 500;
-            border-radius: 9999px; /* Pill shape */
-            transition: all 0.2s ease;
-            color: var(--text-muted);
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            background: var(--card-bg); border: 1px solid var(--border); padding: 0.75rem 1.5rem; 
+            cursor: pointer; font-size: 1rem; font-weight: 600; border-radius: 9999px; 
+            transition: all 0.2s ease; color: var(--text-muted); display: flex; align-items: center; gap: 8px;
         }
         .tab-btn:hover { border-color: var(--primary); color: var(--primary); }
-        .tab-btn.active { 
-            background: var(--primary); 
-            color: white; 
-            border-color: var(--primary); 
-            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3);
-        }
-
-        /* Content Areas */
+        .tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Card Layouts */
-        .card {
-            background: var(--card-bg);
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            border: 1px solid var(--border);
-        }
-
-        /* Canvas Container */
-        .cloud-container { 
-            width: 100%; 
-            height: 50vh; 
-            position: relative; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        /* Cloud Container - Height massively increased */
+        .card { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); padding: 1.5rem; margin-bottom: 1rem; border: 1px solid var(--border); }
+        .cloud-container { width: 100%; height: 75vh; position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer;}
         canvas { width: 100%; height: 100%; }
+        .empty-state { text-align: center; color: var(--text-muted); font-size: 1.1rem; display: none; }
 
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 1.1rem;
-            display: none;
+        /* Universal Interactive Popup */
+        #interactive-popup { 
+            position: absolute; background: rgba(17, 24, 39, 0.98); color: white; padding: 16px; 
+            border-radius: 8px; display: none; max-width: 350px; z-index: 50; 
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); pointer-events: auto;
         }
-
-        /* Modern Tooltip */
-        #tooltip { 
-            position: absolute; 
-            background: rgba(17, 24, 39, 0.95); 
-            color: white; 
-            padding: 12px 16px; 
-            border-radius: 8px; 
-            display: none; 
-            pointer-events: none; 
-            max-width: 300px; 
-            z-index: 50; 
-            font-size: 0.875rem;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
-            backdrop-filter: blur(4px);
-        }
-
-        /* Modern Tables */
-        .table-container { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; text-align: left; }
-        th { 
-            background-color: #f8fafc; 
-            color: var(--text-muted); 
-            font-weight: 600; 
-            text-transform: uppercase; 
-            font-size: 0.75rem; 
-            letter-spacing: 0.05em;
-            padding: 1rem; 
-            border-bottom: 2px solid var(--border);
-        }
-        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
-        tr:last-child td { border-bottom: none; }
-        tr:hover { background-color: #f8fafc; }
-        
-        a { color: var(--primary); text-decoration: none; font-weight: 500;}
-        a:hover { text-decoration: underline; color: var(--primary-hover);}
-        
-        .doi-list { display: flex; flex-direction: column; gap: 4px; }
+        .popup-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #374151; padding-bottom: 8px;}
+        .close-btn { background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 1.2rem; padding: 0;}
+        .close-btn:hover { color: white; }
+        #popup-content { font-size: 0.9rem; color: #d1d5db; display: flex; flex-direction: column; gap: 8px; }
+        a { color: #60a5fa; text-decoration: none; word-break: break-all;}
+        a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <header>
-            <h1>Research Trends Dashboard</h1>
-            <div class="update-time" id="update-time">Loading real-time data...</div>
+            <h1>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="16" height="12" rx="2" ry="2"></rect><line x1="2" y1="9" x2="2" y2="15"></line><line x1="10" y1="12" x2="18" y2="12"></line><line x1="14" y1="8" x2="14" y2="16"></line></svg>
+                Energy Research Trend Analyzer
+            </h1>
+            <div class="update-time" id="update-time">Syncing latest publications...</div>
         </header>
 
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('accumulative')">Accumulative Trends</button>
-            <button class="tab-btn" onclick="switchTab('new-words')">Emerging New Words</button>
+        <div class="info-card">
+            <strong>ℹ️ About this Dashboard:</strong> This tool runs daily to scrape newly published papers from top Energy and Battery journals. 
+            Click on any word in the clouds below to see its specific frequency and associated publication DOIs.
         </div>
 
-        <div id="tooltip"></div>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('accumulative')">📊 Accumulative Trends</button>
+            <button class="tab-btn" onclick="switchTab('new-words')">✨ Emerging New Words</button>
+        </div>
+
+        <div id="interactive-popup">
+            <div class="popup-header">
+                <strong id="popup-word" style="color: #6ee7b7; font-size: 1.2rem; text-transform: capitalize;">Word</strong>
+                <button class="close-btn" onclick="closePopup()">✖</button>
+            </div>
+            <div id="popup-content"></div>
+        </div>
 
         <div id="accumulative" class="tab-content active">
             <div class="card">
                 <div class="cloud-container" id="container-accum">
                     <canvas id="canvas-accum"></canvas>
                 </div>
-            </div>
-            <div class="card table-container">
-                <table>
-                    <thead><tr><th>Vocabulary</th><th>Total Occurrences</th></tr></thead>
-                    <tbody id="table-accum"></tbody>
-                </table>
             </div>
         </div>
 
@@ -170,15 +105,9 @@
                 <div class="cloud-container" id="container-new">
                     <canvas id="canvas-new"></canvas>
                     <div id="new-empty-state" class="empty-state">
-                        No entirely new words discovered today.<br>Check back tomorrow after new papers are published!
+                        No entirely new vocabulary discovered today.<br>Check back tomorrow after new publications arrive!
                     </div>
                 </div>
-            </div>
-            <div class="card table-container">
-                <table>
-                    <thead><tr><th>Emerging Word</th><th>Today's Count</th><th>Source Paper DOIs</th></tr></thead>
-                    <tbody id="table-new"></tbody>
-                </table>
             </div>
         </div>
     </div>
@@ -186,81 +115,83 @@
     <script>
         let globalData = null;
 
+        function closePopup() {
+            document.getElementById('interactive-popup').style.display = 'none';
+        }
+
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
             event.target.classList.add('active');
-            
+            closePopup();
             if (globalData) renderClouds(); 
+        }
+
+        // Handles positioning the popup near the cursor without going off-screen
+        function positionPopup(event) {
+            const popup = document.getElementById('interactive-popup');
+            let left = event.pageX + 15;
+            let top = event.pageY + 15;
+            
+            // Basic boundary collision detection
+            if (left + 350 > window.innerWidth) {
+                left = event.pageX - 365;
+            }
+            
+            popup.style.left = left + 'px';
+            popup.style.top = top + 'px';
+            popup.style.display = 'block';
         }
 
         async function loadData() {
             try {
-                // Add cache-busting to ensure we always get the latest JSON
                 const response = await fetch('dashboard_data.json?' + new Date().getTime());
                 globalData = await response.json();
-                document.getElementById('update-time').innerText = "Last synced: " + globalData.last_updated;
+                document.getElementById('update-time').innerText = "Last synced: " + globalData.last_updated + " UTC";
                 
-                populateTables();
                 renderClouds();
 
                 window.addEventListener('resize', () => {
                     clearTimeout(window.resizeTimer);
-                    window.resizeTimer = setTimeout(renderClouds, 200); // Debounce resize
+                    window.resizeTimer = setTimeout(renderClouds, 200);
                 });
             } catch (error) {
                 console.error("Error loading data:", error);
-                document.getElementById('update-time').innerText = "Waiting for initial data sync...";
-            }
-        }
-
-        function populateTables() {
-            // Accumulative Table
-            const accTbody = document.getElementById('table-accum');
-            accTbody.innerHTML = '';
-            for (const [word, count] of Object.entries(globalData.cumulative)) {
-                accTbody.innerHTML += `<tr><td><strong>${word}</strong></td><td>${count}</td></tr>`;
-            }
-
-            // New Words Table
-            const newTbody = document.getElementById('table-new');
-            newTbody.innerHTML = '';
-            const newWordsEntries = Object.entries(globalData.new_words);
-            
-            if (newWordsEntries.length === 0) {
-                newTbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#6b7280;">No new data to display.</td></tr>`;
-                return;
-            }
-
-            for (const [word, data] of newWordsEntries) {
-                let doiLinks = data.dois.map(doi => `<a href="https://doi.org/${doi}" target="_blank">${doi}</a>`).join('');
-                newTbody.innerHTML += `<tr><td><strong>${word}</strong></td><td>${data.count}</td><td><div class="doi-list">${doiLinks}</div></td></tr>`;
+                document.getElementById('update-time').innerText = "Waiting for initial GitHub Action data sync...";
             }
         }
 
         function renderClouds() {
             if (!globalData) return;
-            const tooltip = document.getElementById('tooltip');
+            const popup = document.getElementById('interactive-popup');
 
-            // Setup Accumulative Cloud
+            // --- Render Accumulative Cloud ---
             if (document.getElementById('accumulative').classList.contains('active')) {
                 const canvasAcc = document.getElementById('canvas-accum');
                 canvasAcc.width = canvasAcc.parentElement.offsetWidth;
                 canvasAcc.height = canvasAcc.parentElement.offsetHeight;
                 
                 let accList = Object.entries(globalData.cumulative).map(([k, v]) => [k, v * 15]); 
-                
                 WordCloud(canvasAcc, { 
                     list: accList, 
                     weightFactor: 1, 
                     color: 'random-dark', 
                     fontFamily: 'Inter',
-                    backgroundColor: 'transparent' 
+                    click: function(item, dimension, event) {
+                        if (!item) return;
+                        const word = item[0];
+                        const realCount = globalData.cumulative[word]; // Get exact unscaled count
+                        
+                        document.getElementById('popup-word').innerText = word;
+                        document.getElementById('popup-content').innerHTML = `<strong>Total historical occurrences:</strong> <span style="color:#fff;">${realCount}</span>`;
+                        
+                        positionPopup(event);
+                    }
                 });
             }
 
-            // Setup New Words Cloud
+            // --- Render New Words Cloud ---
             if (document.getElementById('new-words').classList.contains('active')) {
                 const canvasNew = document.getElementById('canvas-new');
                 const emptyState = document.getElementById('new-empty-state');
@@ -280,24 +211,35 @@
                     WordCloud(canvasNew, { 
                         list: newList, 
                         weightFactor: 1, 
-                        color: () => ['#4f46e5', '#10b981', '#f59e0b', '#ef4444'][Math.floor(Math.random() * 4)], 
+                        color: () => ['#16a34a', '#0ea5e9', '#8b5cf6', '#f59e0b'][Math.floor(Math.random() * 4)], 
                         fontFamily: 'Inter',
-                        backgroundColor: 'transparent',
-                        hover: function(item, dimension, event) {
-                            if (!item) { tooltip.style.display = 'none'; return; }
+                        click: function(item, dimension, event) {
+                            if (!item) return;
                             const word = item[0];
-                            const dois = globalData.new_words[word].dois.join("<br>");
-                            tooltip.innerHTML = `<div style="margin-bottom:4px; font-weight:bold; color:#a5b4fc;">${word}</div>Source DOIs:<br>${dois}`;
-                            tooltip.style.left = event.pageX + 15 + 'px';
-                            tooltip.style.top = event.pageY + 15 + 'px';
-                            tooltip.style.display = 'block';
+                            const data = globalData.new_words[word];
+                            const dois = data.dois.map(doi => `<a href="https://doi.org/${doi}" target="_blank">${doi}</a>`).join("");
+                            
+                            document.getElementById('popup-word').innerText = word;
+                            document.getElementById('popup-content').innerHTML = `
+                                <div><strong>Today's Count:</strong> <span style="color:#fff;">${data.count}</span></div>
+                                <div style="margin-top:4px;"><strong>Source DOIs:</strong></div>
+                                <div style="display: flex; flex-direction: column; gap: 6px;">${dois}</div>
+                            `;
+                            
+                            positionPopup(event);
                         }
                     });
-                    
-                    canvasNew.addEventListener('mouseleave', () => tooltip.style.display = 'none');
                 }
             }
         }
+
+        // Hide popup if clicking completely outside the canvas
+        document.addEventListener('click', function(event) {
+            const popup = document.getElementById('interactive-popup');
+            if (event.target.tagName !== 'CANVAS' && !popup.contains(event.target)) {
+                closePopup();
+            }
+        });
 
         loadData();
     </script>
