@@ -19,7 +19,6 @@
         body { font-family: 'Inter', sans-serif; margin: 0; padding: 2rem 1rem; background: var(--bg-color); color: var(--text-main); }
         .container { max-width: 1400px; margin: 0 auto; }
 
-        /* Header & Info Section */
         header { text-align: center; margin-bottom: 2rem; }
         h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 12px; color: #111827;}
         .update-time { color: var(--text-muted); font-size: 0.875rem; font-weight: 500;}
@@ -29,7 +28,6 @@
             border-radius: 8px; margin-bottom: 2rem; color: #166534; font-size: 0.95rem; line-height: 1.5;
         }
 
-        /* Tabs */
         .tabs { display: flex; justify-content: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;}
         .tab-btn { 
             background: var(--card-bg); border: 1px solid var(--border); padding: 0.75rem 1.5rem; 
@@ -43,13 +41,11 @@
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Cloud Container - Height massively increased */
         .card { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); padding: 1.5rem; margin-bottom: 1rem; border: 1px solid var(--border); }
         .cloud-container { width: 100%; height: 75vh; position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer;}
         canvas { width: 100%; height: 100%; }
-        .empty-state { text-align: center; color: var(--text-muted); font-size: 1.1rem; display: none; }
+        .empty-state, .loading-state { text-align: center; color: var(--text-muted); font-size: 1.1rem; display: none; position: absolute; }
 
-        /* Universal Interactive Popup */
         #interactive-popup { 
             position: absolute; background: rgba(17, 24, 39, 0.98); color: white; padding: 16px; 
             border-radius: 8px; display: none; max-width: 350px; z-index: 50; 
@@ -95,6 +91,7 @@
         <div id="accumulative" class="tab-content active">
             <div class="card">
                 <div class="cloud-container" id="container-accum">
+                    <div id="accum-loading" class="loading-state">Rendering complex data...</div>
                     <canvas id="canvas-accum"></canvas>
                 </div>
             </div>
@@ -103,6 +100,7 @@
         <div id="new-words" class="tab-content">
             <div class="card">
                 <div class="cloud-container" id="container-new">
+                    <div id="new-loading" class="loading-state">Rendering complex data...</div>
                     <canvas id="canvas-new"></canvas>
                     <div id="new-empty-state" class="empty-state">
                         No entirely new vocabulary discovered today.<br>Check back tomorrow after new publications arrive!
@@ -125,16 +123,17 @@
             document.getElementById(tabId).classList.add('active');
             event.target.classList.add('active');
             closePopup();
-            if (globalData) renderClouds(); 
+            if (globalData) {
+                // Short timeout allows UI to paint the tab switch before locking up to draw canvas
+                setTimeout(renderClouds, 50); 
+            }
         }
 
-        // Handles positioning the popup near the cursor without going off-screen
         function positionPopup(event) {
             const popup = document.getElementById('interactive-popup');
             let left = event.pageX + 15;
             let top = event.pageY + 15;
             
-            // Basic boundary collision detection
             if (left + 350 > window.innerWidth) {
                 left = event.pageX - 365;
             }
@@ -154,7 +153,7 @@
 
                 window.addEventListener('resize', () => {
                     clearTimeout(window.resizeTimer);
-                    window.resizeTimer = setTimeout(renderClouds, 200);
+                    window.resizeTimer = setTimeout(renderClouds, 300); // Increased debounce for performance
                 });
             } catch (error) {
                 console.error("Error loading data:", error);
@@ -172,16 +171,35 @@
                 canvasAcc.width = canvasAcc.parentElement.offsetWidth;
                 canvasAcc.height = canvasAcc.parentElement.offsetHeight;
                 
-                let accList = Object.entries(globalData.cumulative).map(([k, v]) => [k, v * 15]); 
+                // PERFORMANCE OPTIMIZATION: Dynamic Normalization
+                const accumEntries = Object.entries(globalData.cumulative);
+                // Sort to get the most frequent words first
+                accumEntries.sort((a, b) => b[1] - a[1]);
+                
+                // Only take the top 100 words to prevent browser freezing
+                const topWords = accumEntries.slice(0, 100);
+                
+                // Find the highest count to set a ceiling for our math
+                const maxCount = topWords.length > 0 ? topWords[0][1] : 1;
+                
+                // Scale words dynamically. Max size is 120px, Min size is 14px.
+                let accList = topWords.map(([word, count]) => {
+                    let calculatedSize = Math.max(14, (count / maxCount) * 120);
+                    return [word, calculatedSize];
+                }); 
+
                 WordCloud(canvasAcc, { 
                     list: accList, 
-                    weightFactor: 1, 
+                    weightFactor: 1, // We already did the math above
+                    gridSize: 16,    // PERFORMANCE OPTIMIZATION: Increases spacing checks, drastically reducing render time
+                    shrinkToFit: true, // Prevents infinite loops if words are too big
                     color: 'random-dark', 
                     fontFamily: 'Inter',
                     click: function(item, dimension, event) {
                         if (!item) return;
                         const word = item[0];
-                        const realCount = globalData.cumulative[word]; // Get exact unscaled count
+                        // Get the real, unscaled count straight from the JSON
+                        const realCount = globalData.cumulative[word]; 
                         
                         document.getElementById('popup-word').innerText = word;
                         document.getElementById('popup-content').innerHTML = `<strong>Total historical occurrences:</strong> <span style="color:#fff;">${realCount}</span>`;
@@ -206,11 +224,21 @@
                     canvasNew.width = canvasNew.parentElement.offsetWidth;
                     canvasNew.height = canvasNew.parentElement.offsetHeight;
                     
-                    let newList = newWordsEntries.map(([k, v]) => [k, v.count * 30]);
+                    // Same performance optimization for new words
+                    newWordsEntries.sort((a, b) => b[1].count - a[1].count);
+                    const topNewWords = newWordsEntries.slice(0, 100);
+                    const maxNewCount = topNewWords.length > 0 ? topNewWords[0][1].count : 1;
+                    
+                    let newList = topNewWords.map(([word, data]) => {
+                        let calculatedSize = Math.max(16, (data.count / maxNewCount) * 100);
+                        return [word, calculatedSize];
+                    });
                     
                     WordCloud(canvasNew, { 
                         list: newList, 
                         weightFactor: 1, 
+                        gridSize: 16,
+                        shrinkToFit: true,
                         color: () => ['#16a34a', '#0ea5e9', '#8b5cf6', '#f59e0b'][Math.floor(Math.random() * 4)], 
                         fontFamily: 'Inter',
                         click: function(item, dimension, event) {
@@ -233,7 +261,6 @@
             }
         }
 
-        // Hide popup if clicking completely outside the canvas
         document.addEventListener('click', function(event) {
             const popup = document.getElementById('interactive-popup');
             if (event.target.tagName !== 'CANVAS' && !popup.contains(event.target)) {
