@@ -21,14 +21,21 @@ nltk.download('stopwords', quiet=True)
 stop_words = set(stopwords.words('english'))
 stop_words.update(['using', 'based', 'study', 'effect', 'effects', 'analysis', 'new', 'two', 'via', 'high'])
 
+
 def clean_and_tokenize(text):
-    """Removes punctuation (except hyphens), stop words, and standalone numbers but keeps chemical formulas."""
+    """Removes HTML tags, punctuation (except hyphens), stop words, and standalone numbers."""
+    # 1. NEW: Strip out HTML tags (turns TiO<sub>2</sub> into TiO2)
+    text = re.sub(r'<[^>]+>', '', text)
+    
+    # 2. Keep alphanumeric characters (letters AND numbers), spaces, and hyphens.
     text = re.sub(r'[^\w\s\-]', '', text).lower()
+    
     words = text.split()
     cleaned_words = []
     
     for w in words:
         w = w.strip('-')
+        # Check it's not a stop word, length > 1, and not purely numeric
         if w not in stop_words and len(w) > 1 and not w.isnumeric():
             cleaned_words.append(w)
             
@@ -123,5 +130,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
