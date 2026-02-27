@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Trends Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #f4f7f6; }
+        h1 { text-align: center; color: #333; }
+        .tabs { display: flex; justify-content: center; margin-bottom: 20px; }
+        .tab-btn { background: #ddd; border: none; padding: 10px 20px; cursor: pointer; font-size: 16px; margin: 0 5px; border-radius: 5px; }
+        .tab-btn.active { background: #2c3e50; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Responsive Cloud Container */
+        .cloud-container { width: 100%; height: 60vh; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; margin-bottom: 20px;}
+        canvas { width: 100%; height: 100%; }
+        
+        /* Tooltip */
+        #tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 5px; display: none; pointer-events: none; max-width: 300px; z-index: 10; font-size: 14px;}
+        
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #2c3e50; color: white; }
+        a { color: #3498db; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <h1>Research Trends Dashboard</h1>
+    <p style="text-align:center;" id="update-time">Loading data...</p>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('accumulative')">Accumulative Trends</button>
+        <button class="tab-btn" onclick="switchTab('new-words')">Emerging New Words</button>
+    </div>
+
+    <div id="tooltip"></div>
+
+    <div id="accumulative" class="tab-content active">
+        <div class="cloud-container" id="container-accum">
+            <canvas id="canvas-accum"></canvas>
+        </div>
+        <table>
+            <thead><tr><th>Word</th><th>Total Occurrences</th></tr></thead>
+            <tbody id="table-accum"></tbody>
+        </table>
+    </div>
+
+    <div id="new-words" class="tab-content">
+        <div class="cloud-container" id="container-new">
+            <canvas id="canvas-new"></canvas>
+        </div>
+        <table>
+            <thead><tr><th>New Word</th><th>Today's Occurrences</th><th>Source Paper DOIs</th></tr></thead>
+            <tbody id="table-new"></tbody>
+        </table>
+    </div>
+
+    <script>
+        let globalData = null;
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+            
+            // Redraw cloud when tab becomes visible to ensure proper sizing
+            if (globalData) renderClouds(); 
+        }
+
+        async function loadData() {
+            try {
+                const response = await fetch('dashboard_data.json');
+                globalData = await response.json();
+                document.getElementById('update-time').innerText = "Last updated: " + globalData.last_updated;
+                
+                populateTables();
+                renderClouds();
+
+                // Redraw on window resize for responsiveness
+                window.addEventListener('resize', renderClouds);
+            } catch (error) {
+                console.error("No data found or error loading data:", error);
+                document.getElementById('update-time').innerText = "Waiting for first GitHub Action run to generate data.";
+            }
+        }
+
+        function populateTables() {
+            // Accumulative Table
+            const accTbody = document.getElementById('table-accum');
+            accTbody.innerHTML = '';
+            for (const [word, count] of Object.entries(globalData.cumulative)) {
+                accTbody.innerHTML += `<tr><td><strong>${word}</strong></td><td>${count}</td></tr>`;
+            }
+
+            // New Words Table
+            const newTbody = document.getElementById('table-new');
+            newTbody.innerHTML = '';
+            for (const [word, data] of Object.entries(globalData.new_words)) {
+                let doiLinks = data.dois.map(doi => `<a href="https://doi.org/${doi}" target="_blank">${doi}</a>`).join('<br>');
+                newTbody.innerHTML += `<tr><td><strong>${word}</strong></td><td>${data.count}</td><td>${doiLinks}</td></tr>`;
+            }
+        }
+
+        function renderClouds() {
+            if (!globalData) return;
+
+            const tooltip = document.getElementById('tooltip');
+
+            // Setup Accumulative Cloud
+            if (document.getElementById('accumulative').classList.contains('active')) {
+                const canvasAcc = document.getElementById('canvas-accum');
+                canvasAcc.width = canvasAcc.parentElement.offsetWidth;
+                canvasAcc.height = canvasAcc.parentElement.offsetHeight;
+                
+                let accList = Object.entries(globalData.cumulative).map(([k, v]) => [k, v * 10]); // scale up weights for visibility
+                
+                WordCloud(canvasAcc, { list: accList, weightFactor: 1, color: 'random-dark', backgroundColor: '#fff' });
+            }
+
+            // Setup New Words Cloud
+            if (document.getElementById('new-words').classList.contains('active')) {
+                const canvasNew = document.getElementById('canvas-new');
+                canvasNew.width = canvasNew.parentElement.offsetWidth;
+                canvasNew.height = canvasNew.parentElement.offsetHeight;
+                
+                let newList = Object.entries(globalData.new_words).map(([k, v]) => [k, v.count * 20]); // scale up weights
+                
+                WordCloud(canvasNew, { 
+                    list: newList, 
+                    weightFactor: 1, 
+                    color: 'random-light', 
+                    backgroundColor: '#222',
+                    hover: function(item, dimension, event) {
+                        if (!item) { tooltip.style.display = 'none'; return; }
+                        const word = item[0];
+                        const dois = globalData.new_words[word].dois.join("<br>");
+                        tooltip.innerHTML = `<strong>${word}</strong><br>DOIs:<br>${dois}`;
+                        tooltip.style.left = event.pageX + 10 + 'px';
+                        tooltip.style.top = event.pageY + 10 + 'px';
+                        tooltip.style.display = 'block';
+                    }
+                });
+                
+                // Hide tooltip when moving off canvas
+                canvasNew.addEventListener('mouseleave', () => tooltip.style.display = 'none');
+            }
+        }
+
+        loadData();
+    </script>
+</body>
+</html>
