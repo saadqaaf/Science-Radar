@@ -1,0 +1,4 @@
+requests
+wordcloud
+matplotlib
+pillow
