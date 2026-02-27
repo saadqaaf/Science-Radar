@@ -11,7 +11,7 @@ import os
 # Replace with the ISSNs of your target journals (e.g., Nature, Science, etc.)
 ISSNS = ["1476-4687", "1095-9203"] 
 # Crossref requires an email to put you in the reliable "Polite Pool"
-EMAIL = "your.email@example.com" 
+EMAIL = "s_g555@yahoo.com" 
 STATE_FILE = "word_state.json"
 
 def clean_and_tokenize(text):
@@ -95,4 +95,5 @@ def main():
         print("No entirely new words found today. Skipping new words cloud.")
 
 if __name__ == "__main__":
+
     main()
